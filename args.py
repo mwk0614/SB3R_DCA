@@ -15,8 +15,7 @@ def make_args():
     parser.add_argument("--lr_initial", type=float, default=1e-4)
     parser.add_argument("--lr_decay_step", type=int, default=10000)
 
-    parser.add_argument("--C_sketch", type=int, default=3)
-    parser.add_argument("--C_model", type=int, default=3)
+    parser.add_argument("--C", type=int, default=3)
     parser.add_argument("--K_sketch", type=int, default=16)
     parser.add_argument("--K_model", type=int, default=4)
 

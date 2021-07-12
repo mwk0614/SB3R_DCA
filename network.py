@@ -75,7 +75,10 @@ class Discriminator(nn.Module):
         return self.network(x)
 
 def average_view_pooling(x):
-    return torch.mean(x, dim=0, keepdim=True)
+    x = torch.mean(x, dim=1, keepdim=True)
+    x = torch.squeeze(x)
+    return x
+
 
 
 if __name__ == "__main__":

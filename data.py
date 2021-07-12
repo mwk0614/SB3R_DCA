@@ -18,8 +18,84 @@ from args import make_args
 from utils import *
 from renderer import PhongRenderer
 
-class SketchDataset(Dataset):
-    def __init__(self, args, transform=None):
+class ModelDataset():
+    def __init__(self, args, renderer):
+        '''
+        ## Goal of sampling data ##
+
+        Anchor & Positive sketches (1 class, K sketches)
+        Negative sketches (C-1 class, K sketches each)
+
+        ## Variable Description ##
+
+        self.C : sampled class number
+        self.K : sampled model number for each class
+
+        self.class2model : {"airplane" : ["1.obj", "2.obj", "5.obj"], "ant" : ["3.obj", "4.obj"], ... }
+        self.cls_name : ["airplane", "ant", ... ]
+        self.cls : [0, 1, ... ]
+        self.cls2name : {0 : "airplane", 1 : "ant", ... }
+        self.cls2model = {0 : ["1.obj", "2.obj", "5.obj"], 1: ["3.obj", "4.obj"], ... }
+        self.cls_list = [0, 0, 0, 1, 1, ... ]
+        self.model_list = ["1.obj", "2.obj", "5.obj", "3.obj", "4.obj", ... ]
+        '''
+
+        # self.C_model = args.C_model
+        self.K_model = args.K_model
+        self.renderer = renderer
+        self.cla_file = args.model_cla_file
+
+        class2model = read_cla(self.cla_file)
+        self.cls_name = list(class2model.keys())
+        self.total_cls_num = len(self.cls_name)
+
+        self.cls = list(range(self.total_cls_num))
+        self.cls2name = {} # match class & class_name (0:"airplane")
+        for i in range(self.total_cls_num):
+            self.cls2name[i] = self.cls_name[i]
+
+        self.cls2model = {} # match class & according model (0:["1.obj path", "2.obj path"])
+        self.total_model_num = 0
+        for i in range(self.total_cls_num):
+            model_idx_list = class2model[self.cls2name[i]]
+            self.cls2model[i] = [args.model_dir + "/" + idx + ".obj" for idx in model_idx_list]
+            self.total_model_num += len(model_idx_list)
+
+        self.cls_list = list()
+        self.model_list = list()
+        for cl, m in self.cls2model.items():
+            self.cls_list += [cl] * len(m)
+            self.model_list += m
+
+    def get_item(self, sampled_cls):
+        cls_list = list()
+        model_list = list()
+        make_tensor = transforms.ToTensor()
+        
+        # Selected pair with index
+        for c in sampled_cls:
+            sampled_models = sorted(random.sample(self.cls2model[c], self.K_model))
+            cls_list += [c] * self.K_model
+            model_list += sampled_models
+
+        # Make sampled class to torch.tensor
+        cls_model = torch.Tensor(cls_list)
+
+        # View rendering for each model
+        decide_expand_dim = True
+        for model in model_list:
+            rendered_model = self.renderer(model)
+            rendered_model = torch.unsqueeze(rendered_model,0)
+            if decide_expand_dim:
+                rendered_models = rendered_model
+                decide_expand_dim = False
+            else:
+                rendered_models = torch.cat((rendered_models, rendered_model),0)
+
+        return rendered_models, cls_model
+
+class SketchModelDataset(Dataset):
+    def __init__(self, args, renderer, transform=None):
         '''
         ## Goal of sampling data ##
 
@@ -38,11 +114,14 @@ class SketchDataset(Dataset):
         self.cls_list = [0, 0, 0, 1, 1, ...]
         self.sketches_list = ["1.png", "2.png", "5.png", "3.png", "4.png", ...]
         '''
-        self.C_sketch = args.C_sketch
+        self.C = args.C
         self.K_sketch = args.K_sketch
         self.sketch_train_dir = args.sketch_train_dir
         self.total_cls_num = 0
         self.total_sketches_num = 0
+
+        # Import ModelDataset
+        self.model_dataset = ModelDataset(args, renderer)
 
         # Load whole data (data protocol: class & sketches (index: file_name))
         self.cls_dir = sorted(glob.glob(self.sketch_train_dir + "/*"))
@@ -77,146 +156,51 @@ class SketchDataset(Dataset):
         return self.total_sketches_num
 
     def __getitem__(self, idx):
-        
+
+        ############ Sketch Part ############
         cls_list = list()
         sketches_list = list()
         make_tensor = transforms.ToTensor()
         
-        # Selected pair with index
-        selected_cls = self.cls_list[idx]
-        selected_sketch = self.sketches_list[idx]
+        # Sample class-sketch pair
+        sampled_cls = sorted(random.sample(self.cls, self.C))
 
-        cls_sub = self.cls.copy()
-        cls_sub.remove(selected_cls)
-        sampled_cls = sorted(random.sample(cls_sub, self.C_sketch-1))
-        sampled_cls.append(selected_cls)
         for c in sampled_cls:
-            if c == selected_cls:
-                cls2sketches_sub = self.cls2sketches[c].copy()
-                cls2sketches_sub.remove(selected_sketch)
-                sampled_sketches = sorted(random.sample(cls2sketches_sub, self.K_sketch-1))
-                sampled_sketches.append(selected_sketch)
-                cls_list += [c] * self.K_sketch
-                sketches_list += sampled_sketches
-            else:
-                sampled_sketches = sorted(random.sample(self.cls2sketches[c], self.K_sketch))
-                cls_list += [c] * self.K_sketch
-                sketches_list += sampled_sketches
+            sampled_sketches = sorted(random.sample(self.cls2sketches[c], self.K_sketch))
+            cls_list += [c] * self.K_sketch
+            sketches_list += sampled_sketches
 
         # Make sampled class to torch.tensor
-        cls_tensor = torch.Tensor(cls_list)
+        cls_sketch = torch.Tensor(cls_list)
 
         # Read image & convert 3 channels & make to torch.tensor
         decide_expand_dim = True
         for path in sketches_list:
             sketch_pil = Image.open(path).convert(mode="RGB")
-            sketch_tensor = make_tensor(sketch_pil)
-            sketch_tensor = torch.unsqueeze(sketch_tensor,0)
+            sketch = make_tensor(sketch_pil)
+            sketch = torch.unsqueeze(sketch,0)
             if decide_expand_dim:
-                sketches_tensor = sketch_tensor
+                sketches = sketch
                 decide_expand_dim = False
             else:
-                sketches_tensor = torch.cat((sketches_tensor, sketch_tensor),0)
-
+                sketches = torch.cat((sketches, sketch),0)
         # transform input
         if self.transform is not None:
-            sketches_tensor = self.transform(sketches_tensor)
+            sketches = self.transform(sketches)
 
-        return sketches_tensor, cls_tensor
+        ############ Model Part ############
+        rendered_models, cls_model = self.model_dataset.get_item(sampled_cls)
+        rendered_models = rendered_models[:, ... , :3].permute(0,1,4,2,3) # Make shape to [batch, view_num, C, H, W]
 
-class ModelDataset(Dataset):
-    def __init__(self, args, renderer):
-        '''
-        ## Goal of sampling data ##
-
-        Anchor & Positive sketches (1 class, K sketches)
-        Negative sketches (C-1 class, K sketches each)
-
-        ## Variable Description ##
-
-        self.C : sampled class number
-        self.K : sampled model number for each class
-
-        self.class2model : {"airplane" : ["1.obj", "2.obj", "5.obj"], "ant" : ["3.obj", "4.obj"], ... }
-        self.cls_name : ["airplane", "ant", ... ]
-        self.cls : [0, 1, ... ]
-        self.cls2name : {0 : "airplane", 1 : "ant", ... }
-        self.cls2model = {0 : ["1.obj", "2.obj", "5.obj"], 1: ["3.obj", "4.obj"], ... }
-        self.cls_list = [0, 0, 0, 1, 1, ... ]
-        self.model_list = ["1.obj", "2.obj", "5.obj", "3.obj", "4.obj", ... ]
-        '''
-
-        self.C_model = args.C_model
-        self.K_model = args.K_model
-        self.renderer = renderer
-        self.cla_file = args.model_cla_file
-
-        class2model = read_cla(self.cla_file)
-        self.cls_name = list(class2model.keys())
-        self.total_cls_num = len(self.cls_name)
-
-        self.cls = list(range(self.total_cls_num))
-        self.cls2name = {} # match class & class_name (0:"airplane")
-        for i in range(self.total_cls_num):
-            self.cls2name[i] = self.cls_name[i]
-
-        self.cls2model = {} # match class & according model (0:["1.obj path", "2.obj path"])
-        self.total_model_num = 0
-        for i in range(self.total_cls_num):
-            model_idx_list = class2model[self.cls2name[i]]
-            self.cls2model[i] = [args.model_dir + "/" + idx + ".obj" for idx in model_idx_list]
-            self.total_model_num += len(model_idx_list)
-
-        self.cls_list = list()
-        self.model_list = list()
-        for cl, m in self.cls2model.items():
-            self.cls_list += [cl] * len(m)
-            self.model_list += m
-
-    def __len__(self):
-        return self.total_model_num
-
-    def __getitem__(self, idx):
-        cls_list = list()
-        model_list = list()
-        make_tensor = transforms.ToTensor()
+        # Unload from GPU for saving GPU Memory
+        sketches = sketches.to("cpu")
+        cls_sketch = cls_sketch.to("cpu")
+        rendered_models = rendered_models.to("cpu")
+        cls_model = cls_model.to("cpu")
         
-        # Selected pair with index
-        selected_cls = self.cls_list[idx]
-        selected_model = self.model_list[idx]
+        return sketches, cls_sketch, rendered_models, cls_model
 
-        cls_sub = self.cls.copy()
-        cls_sub.remove(selected_cls)
-        sampled_cls = sorted(random.sample(cls_sub, self.C_model-1))
-        sampled_cls.append(selected_cls)
-        for c in sampled_cls:
-            if c == selected_cls:
-                cls2model_sub = self.cls2model[c].copy()
-                cls2model_sub.remove(selected_model)
-                sampled_models = sorted(random.sample(cls2model_sub, self.K_model-1))
-                sampled_models.append(selected_model)
-                cls_list += [c] * self.K_model
-                model_list += sampled_models
-            else:
-                sampled_models = sorted(random.sample(self.cls2model[c], self.K_model))
-                cls_list += [c] * self.K_model
-                model_list += sampled_models
 
-        # Make sampled class to torch.tensor
-        cls_tensor = torch.Tensor(cls_list)
-
-        # View rendering for each model
-        decide_expand_dim = True
-        for model in model_list:
-            rendered_model = self.renderer(model)
-            rendered_model = torch.unsqueeze(rendered_model,0)
-            if decide_expand_dim:
-                rendered_models_tensor = rendered_model
-                decide_expand_dim = False
-            else:
-                rendered_models_tensor = torch.cat((rendered_models_tensor, rendered_model),0)
-
-        return rendered_models_tensor, cls_tensor
         
 if __name__ == "__main__":
     args = make_args()
@@ -232,5 +216,5 @@ if __name__ == "__main__":
         "obj_filename": "./input/m0.obj"
     }
     phong_renderer = PhongRenderer(args, params["image_size"], params["camera_dist"], params["elevation"], params["azim_angle"])
-    model_dataset = ModelDataset(args, phong_renderer)
+    model_dataset = SketchModelDataset(args, phong_renderer)
     model_dataset.__getitem__(1)
