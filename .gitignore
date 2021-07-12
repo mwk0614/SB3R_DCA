@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+SHREC2013/
+zips/
+rendering_result/
+cla_files/
+input/
