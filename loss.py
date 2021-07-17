@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 
 def IAML_loss(Z1, Z2, cls_list, margin=1.0):
@@ -22,8 +23,7 @@ def IAML_loss(Z1, Z2, cls_list, margin=1.0):
         negative_dist_min = torch.min(negative_dist_table)
 
         loss_sub = margin - negative_dist_min + positive_dist_max
-        loss = loss_sub if loss_sub > 0 else 0
-
+        loss = F.relu(loss_sub)
         total_loss += loss
     return total_loss
 
@@ -46,4 +46,15 @@ def CMD_loss(Zt, Z2, cls_t, cls_2):
         cmd_loss += cmd_loss_sub
 
     return cmd_loss
+
+def G_loss(Zt_disc):
+    log_Zt_disc = torch.log(1-Zt_disc)
+    loss = torch.mean(log_Zt_disc)
+    return loss
+
+def D_loss(Z2_disc, Zt_disc):
+    model_term = torch.mean(torch.log(Z2_disc))
+    trans_term = torch.mean(torch.log(1-Zt_disc))
+    loss = - model_term - trans_term
+    return loss
 

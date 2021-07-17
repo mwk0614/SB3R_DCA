@@ -16,15 +16,3 @@ if __name__ == "__main__":
     # Parameter Setting
     args = make_args()
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    import ipdb; ipdb.set_trace()
-
-    # DataLoader
-
-    # Network
-    # sketch_cnn = MVCNN()
-    # sketch_metric = MetricCNN()
-
-    # model_cnn = MVCNN()
-    # model_metric = MetricCNN()
-
-    # transform_net = TransformNetwork()

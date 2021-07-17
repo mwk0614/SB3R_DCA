@@ -133,3 +133,5 @@ zips/
 rendering_result/
 cla_files/
 input/
+ckpt/
+runs/

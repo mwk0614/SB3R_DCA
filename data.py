@@ -198,7 +198,7 @@ class SketchModelDataset(Dataset):
         rendered_models = rendered_models.to("cpu")
         cls_model = cls_model.to("cpu")
         
-        return sketches, cls_sketch, rendered_models, cls_model
+        return sketches, cls_sketch, rendered_models, cls_model, self.cls2name
 
 
         

@@ -1,5 +1,11 @@
 import meshio
 from PIL import Image
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+
+import torch
+import torchvision.utils as vutils
 
 def read_image(filepath):
     raise NotImplementedError
@@ -33,6 +39,23 @@ def read_cla(cla_file):
     assert len(model_number_check) == int(contents[1].split(" ")[1])
 
     return class_model
+
+def save_checkpoint(model, optimizer, save_path):
+    ckpt_format = {
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict()
+    }
+    torch.save(ckpt_format, save_path)
+
+def input_check(input_tensor):
+    img_tensor = input_tensor[0].cpu()
+    img_npy = img_tensor.numpy()
+    img_npy = np.transpose(img_tensor, (1,2,0))
+    plt.imshow(img_npy)
+    plt.show()
+    import ipdb; ipdb.set_trace()
+
+
 
 if __name__ == "__main__":
     cla_file = "./cla_files/SHREC13_SBR_Model.cla"

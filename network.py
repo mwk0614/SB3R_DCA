@@ -68,11 +68,16 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.network = nn.Sequential(
             nn.Linear(128,64),
-            nn.Linear(64,1)
+            nn.ReLU(),
+            nn.Linear(64,1),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
         return self.network(x)
+
+def weight_initialization(m):
+    raise NotImplementedError
 
 def average_view_pooling(x):
     x = torch.mean(x, dim=1, keepdim=True)
