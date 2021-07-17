@@ -28,6 +28,10 @@ from loss import IAML_loss, CMD_loss, G_loss, D_loss
 - Testing pipeline
 '''
 
+def pretrain_sketch(args, data_loader, model, optim):
+
+
+
 def train(args):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     writer = SummaryWriter()
@@ -82,7 +86,7 @@ def train(args):
     ### Loss (Objective Function) ###
     # IAML, CMD loss, G_loss, D_loss imported in iteration
 
-    ### Pre-training step ###
+    ### Step 0-1:  Pre-training sketch ###
     epoch_count = 0
     iter_count = 0
     while epoch_count < args.max_epoch:
@@ -92,8 +96,8 @@ def train(args):
             # Data Load
             sketches = data[0].to(device) if torch.cuda.is_available() else data[0]
             cls_sketch = data[1].to(device) if torch.cuda.is_available() else data[1]
-            rendered_models = data[2].to(device) if torch.cuda.is_available() else data[2]
-            cls_model = data[3].to(device) if torch.cuda.is_available() else data[3]
+            # rendered_models = data[2].to(device) if torch.cuda.is_available() else data[2]
+            # cls_model = data[3].to(device) if torch.cuda.is_available() else data[3]
 
             ### Update Sketch CNN & Metric network ###
             s_cnn_features = sketch_cnn(sketches)
@@ -110,59 +114,81 @@ def train(args):
                 import ipdb; ipdb.set_trace(context=21)
             sketch_adam.step()
 
-            # ### Update Model CNN & Metric network ###
-            # model_cnn.zero_grad()
-            # model_metric.zero_grad()
-
-            # decide_expand_dim = True
-            # view_num = rendered_models.shape[1]
-            # for i in range(view_num):
-            #     m_cnn_feature = model_cnn(rendered_models[ : , i, ... ])
-            #     if decide_expand_dim:
-            #         m_cnn_features_sub = torch.unsqueeze(m_cnn_feature, 1)
-            #         decide_expand_dim = False
-            #     else:
-            #         m_cnn_feature = torch.unsqueeze(m_cnn_feature, 1)
-            #         m_cnn_features_sub = torch.cat((m_cnn_features_sub, m_cnn_feature), 1)
-            # m_cnn_features = average_view_pooling(m_cnn_features_sub)
-            # m_metric_features = model_metric(m_cnn_features)
-
-            # iaml_loss_model = IAML_loss(m_metric_features, m_metric_features, cls_model)
-            # # import ipdb; ipdb.set_trace(context=21)
-            # iaml_loss_model.backward()
-            
-            # model_adam.step()
             writer.add_scalar("Loss/IAML_sketch", iaml_loss_sketch, iter_count)
             if iter_count % 5 == 0:
-                print("Iteration Check: {}".format(iter_count))
+                print("Pre-train Sketch network step... Iteration Check: {}".format(iter_count))
 
         if epoch_count % 5 == 0:
             # Save Models, 
-            sketch_cnn_ckpt_path = args.sketch_ckpt_dir + "/sketch_cnn_ckpt_" + str(epoch_count) + ".pth"
-            sketch_metric_ckpt_path = args.sketch_ckpt_dir + "/sketch_metric_ckpt_" + str(epoch_count) + ".pth"
-            sketch_optim_ckpt_path = args.sketch_ckpt_dir + "/sketch_optim_ckpt_" + str(epoch_count) + ".pth"
+            sketch_cnn_ckpt_path = args.sketch_pretrained_ckpt_dir + "/sketch_cnn_ckpt_" + str(epoch_count) + ".pth"
+            sketch_metric_ckpt_path = args.sketch_pretrained_ckpt_dir + "/sketch_metric_ckpt_" + str(epoch_count) + ".pth"
+            sketch_optim_ckpt_path = args.sketch_pretrained_ckpt_dir + "/sketch_optim_ckpt_" + str(epoch_count) + ".pth"
             torch.save(sketch_cnn.state_dict(), sketch_cnn_ckpt_path)
             torch.save(sketch_metric.state_dict(), sketch_metric_ckpt_path)
             torch.save(sketch_optim.state_dict(), sketch_optim_ckpt_path)
-            # ### Update Discriminator ###
-            # import ipdb; ipdb.set_trace(context=21)
 
-            # ### Update Transformation Network ###
-            # trans_features = transform_net(s_metric_features)
+    ### Step 0-2:  Pre-training model ###
+    epoch_count = 0
+    iter_count = 0
+    while epoch_count < args.max_epoch:
+        epoch_count += 1
+        for i, data in enumerate(sketch_model_train, 0):
+            iter_count += 1
+            # Data Load
+            # sketches = data[0].to(device) if torch.cuda.is_available() else data[0]
+            # cls_sketch = data[1].to(device) if torch.cuda.is_available() else data[1]
+            rendered_models = data[2].to(device) if torch.cuda.is_available() else data[2]
+            cls_model = data[3].to(device) if torch.cuda.is_available() else data[3]
 
-            # trans_disc = discriminator(trans_features)
-            # model_disc = discriminator(m_metric_features)
-            # import ipdb; ipdb.set_trace(context=21)
+            model_cnn.zero_grad()
+            model_metric.zero_grad()
 
-            # # Define Loss
-            # iaml_loss_sketch = IAML_loss(s_metric_features, s_metric_features, cls_sketch)
+            decide_expand_dim = True
+            view_num = rendered_models.shape[1]
+            for i in range(view_num):
+                m_cnn_feature = model_cnn(rendered_models[ : , i, ... ])
+                if decide_expand_dim:
+                    m_cnn_features_sub = torch.unsqueeze(m_cnn_feature, 1)
+                    decide_expand_dim = False
+                else:
+                    m_cnn_feature = torch.unsqueeze(m_cnn_feature, 1)
+                    m_cnn_features_sub = torch.cat((m_cnn_features_sub, m_cnn_feature), 1)
+            m_cnn_features = average_view_pooling(m_cnn_features_sub)
+            m_metric_features = model_metric(m_cnn_features)
 
+            iaml_loss_model = IAML_loss(m_metric_features, m_metric_features, cls_model)
+            iaml_loss_model.backward()
+            
+            model_adam.step()
 
-            # iaml_loss_trans = IAML_loss(trans_features, trans_features, cls_sketch)
-            # cmd_loss = CMD_loss(trans_features, m_metric_features, cls_sketch, cls_model)
-            # gen_loss = G_loss(trans_disc)
-            # disc_loss = D_loss(model_disc, trans_disc)
-            # import ipdb; ipdb.set_trace()
+            writer.add_scalar("Loss/IAML_model", iaml_loss_model, iter_count)
+            if iter_count % 5 == 0:
+                print("Pre-train Model network step... Iteration Check: {}".format(iter_count))
+
+        if epoch_count % 5 == 0:
+            # Save Models, 
+            model_cnn_ckpt_path = args.model_pretrained_ckpt_dir + "/model_cnn_ckpt_" + str(epoch_count) + ".pth"
+            model_metric_ckpt_path = args.model_pretrained_ckpt_dir + "/model_metric_ckpt_" + str(epoch_count) + ".pth"
+            model_optim_ckpt_path = args.model_pretrained_ckpt_dir + "/model_optim_ckpt_" + str(epoch_count) + ".pth"
+            torch.save(model_cnn.state_dict(), model_cnn_ckpt_path)
+            torch.save(model_metric.state_dict(), model_metric_ckpt_path)
+            torch.save(model_optim.state_dict(), model_optim_ckpt_path)
+
+    ### Update Transformation Network ###
+    # trans_features = transform_net(s_metric_features)
+
+    # trans_disc = discriminator(trans_features)
+    # model_disc = discriminator(m_metric_features)
+    # import ipdb; ipdb.set_trace(context=21)
+
+    # ### Define Loss ###
+    # iaml_loss_sketch = IAML_loss(s_metric_features, s_metric_features, cls_sketch)
+    # iaml_loss_trans = IAML_loss(trans_features, trans_features, cls_sketch)
+    # cmd_loss = CMD_loss(trans_features, m_metric_features, cls_sketch, cls_model)
+    # gen_loss = G_loss(trans_disc)
+    # disc_loss = D_loss(model_disc, trans_disc)
+    # import ipdb; ipdb.set_trace()
+        
 
 if __name__ == "__main__":
     args = make_args()

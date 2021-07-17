@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 
-def IAML_loss(Z1, Z2, cls_list, margin=1.0):
+def IAML_loss(Z1, Z2, cls_list, margin=5.0):
     '''
     Z1 = Z2 (both are same features)
     Z1, Z2 could be (sketch, model)

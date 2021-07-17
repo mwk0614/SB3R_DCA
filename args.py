@@ -11,7 +11,8 @@ def make_args():
     parser.add_argument("--model_cla_file", type=str, default="./cla_files/SHREC13_SBR_Model.cla")
 
     # Training Setting
-    parser.add_argument("--sketch_ckpt_dir", type=str, default="./ckpt/sketch")
+    parser.add_argument("--sketch_pretrained_ckpt_dir", type=str, default="./ckpt/sketch_pretrained")
+    parser.add_argument("--model_pretrained_ckpt_dir", type=str, default="./ckpt/model_pretrained")
 
     parser.add_argument("--max_iter", type=int, default=30000, help="the number of the maximal iterative")
     parser.add_argument("--max_epoch", type=int, default=50, help="the number of the maximal epoch")
