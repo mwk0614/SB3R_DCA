@@ -24,6 +24,7 @@ def IAML_loss(Z1, Z2, cls_list, margin=5.0):
         loss_sub = margin - negative_dist_min + positive_dist_max
         loss = F.relu(loss_sub)
         total_loss += loss
+    total_loss = total_loss / len(cls_list.tolist())
     return total_loss
 
 def CMD_loss(Zt, Z2, cls_t, cls_2):

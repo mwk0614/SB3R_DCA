@@ -3,6 +3,8 @@ import argparse
 def make_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--img_size", type=int, help="Rendered image size")
+    parser.add_argument("--pretraining", type=int, default=True)
+    parser.add_argument("--pretraining_mode", type=str, default="1234")
 
     # Data Path
     parser.add_argument("--sketch_train_dir", type=str, default="./SHREC2013/TRAINING_SKETCHES/TRAINING_SKETCHES")
@@ -13,6 +15,8 @@ def make_args():
     # Training Setting
     parser.add_argument("--sketch_pretrained_ckpt_dir", type=str, default="./ckpt/sketch_pretrained")
     parser.add_argument("--model_pretrained_ckpt_dir", type=str, default="./ckpt/model_pretrained")
+    parser.add_argument("--trans_pretrained_ckpt_dir", type=str, default="./ckpt/trans_pretrained")
+
 
     parser.add_argument("--max_iter", type=int, default=30000, help="the number of the maximal iterative")
     parser.add_argument("--max_epoch", type=int, default=50, help="the number of the maximal epoch")

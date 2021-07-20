@@ -189,17 +189,17 @@ class SketchModelDataset(Dataset):
             sketches = self.transform(sketches)
 
         ############ Model Part ############
-        rendered_models, cls_model = self.model_dataset.get_item(sampled_cls)
-        rendered_models = rendered_models[:, ... , :3].permute(0,1,4,2,3) # Make shape to [batch, view_num, C, H, W]
+        # rendered_models, cls_model = self.model_dataset.get_item(sampled_cls)
+        # rendered_models = rendered_models[:, ... , :3].permute(0,1,4,2,3) # Make shape to [batch, view_num, C, H, W]
 
         # Unload from GPU for saving GPU Memory
-        sketches = sketches.to("cpu")
-        cls_sketch = cls_sketch.to("cpu")
-        rendered_models = rendered_models.to("cpu")
-        cls_model = cls_model.to("cpu")
+        # sketches = sketches.detach().to("cpu")
+        # cls_sketch = cls_sketch.detach().to("cpu")
+        # rendered_models = rendered_models.detach().to("cpu")
+        # cls_model = cls_model.detach().to("cpu")
         
-        return sketches, cls_sketch, rendered_models, cls_model, self.cls2name
-
+        return sketches, cls_sketch, self.cls2name
+        # return sketches, cls_sketch, rendered_models, cls_model, self.cls2name
 
         
 if __name__ == "__main__":
