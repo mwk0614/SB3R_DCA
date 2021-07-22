@@ -7,7 +7,7 @@ def make_args():
     parser.add_argument("--pretraining_mode", type=str, default="1234")
 
     # Data Path
-    parser.add_argument("--sketch_train_dir", type=str, default="./SHREC2013/TRAINING_SKETCHES/TRAINING_SKETCHES")
+    parser.add_argument("--sketch_train_dir", type=str, default="./SHREC2013/TRAINING_SKETCHES_resized/TRAINING_SKETCHES")
     parser.add_argument("--sketch_test_dir", type=str, default="./SHREC2013/TESTING_SKETCHES")
     parser.add_argument("--model_dir", type=str, default="./SHREC2013/TARGET_MODELS/models_obj")
     parser.add_argument("--model_cla_file", type=str, default="./cla_files/SHREC13_SBR_Model.cla")

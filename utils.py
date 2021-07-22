@@ -67,6 +67,18 @@ def weights_init_normal(m):
     # m.bias.data should be 0
         m.bias.data.fill_(0)
 
+def resize_image(img_path, resize_shape=(224,224), filter_name="Lanzcos"):
+    assert filter_name in ["Bilinear", "Bicubic", "Lanzcos"] 
+    img = Image.open(img_path)
+    if filter_name == "Bilinear":
+        img_resized = img.resize(resize_shape, Image.BILINEAR)
+    if filter_name == "Bicubic":
+        img_resized = img.resize(resize_shape, Image.BICUBIC)
+    if filter_name == "Lanzcos":
+        img_resized = img.resize(resize_shape, Image.LANCZOS)
+    return img_resized
+
+
 
 if __name__ == "__main__":
     cla_file = "./cla_files/SHREC13_SBR_Model.cla"
