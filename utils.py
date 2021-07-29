@@ -1,8 +1,10 @@
+import os
+import cv2
 import meshio
-from PIL import Image
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+from PIL import Image
 
 import torch
 import torchvision.utils as vutils
@@ -77,6 +79,21 @@ def resize_image(img_path, resize_shape=(224,224), filter_name="Lanzcos"):
     if filter_name == "Lanzcos":
         img_resized = img.resize(resize_shape, Image.LANCZOS)
     return img_resized
+
+def check_input(data_loader, out_dir="check_input"):
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+    data_zip = next(iter(data_loader))
+    sketches = torch.squeeze(data_zip[0]).detach().cpu()
+    sketches = sketches.numpy()
+    sketches_cls = (torch.squeeze(data_zip[1]).detach().cpu()).numpy()
+    cls2name = data_zip[2]
+    print("Sketch tensor shape: {}".format(sketches.shape))
+    # print("Model tensor shape: {}".format(sketches.shape))
+    for i in range(sketches.shape[0]):
+        sketch = np.transpose(sketches[i],(1,2,0))
+        cv2.imwrite(out_dir+"/sketch_"+str(i)+"_"+cls2name[int(sketches_cls[i])][0]+".png", (sketch*255).astype(np.uint8))
+    import ipdb; ipdb.set_trace(context=21)
 
 
 

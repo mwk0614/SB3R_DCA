@@ -129,6 +129,7 @@ dmypy.json
 .pyre/
 
 SHREC2013/
+SHREC2013_CLA_files/
 zips/
 rendering_result/
 cla_files/

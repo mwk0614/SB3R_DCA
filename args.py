@@ -1,16 +1,28 @@
 import argparse
 
+def str2bool(v): 
+    if isinstance(v, bool):
+        return v 
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True 
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 def make_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--img_size", type=int, help="Rendered image size")
-    parser.add_argument("--pretraining", type=int, default=True)
+    parser.add_argument("--pretraining", type=str2bool, default=True)
     parser.add_argument("--pretraining_mode", type=str, default="1234")
 
     # Data Path
     parser.add_argument("--sketch_train_dir", type=str, default="./SHREC2013/TRAINING_SKETCHES_resized/TRAINING_SKETCHES")
     parser.add_argument("--sketch_test_dir", type=str, default="./SHREC2013/TESTING_SKETCHES")
-    parser.add_argument("--model_dir", type=str, default="./SHREC2013/TARGET_MODELS/models_obj")
-    parser.add_argument("--model_cla_file", type=str, default="./cla_files/SHREC13_SBR_Model.cla")
+    # parser.add_argument("--model_dir", type=str, default="./SHREC2013/TARGET_MODELS/models_obj")
+    parser.add_argument("--model_dir", type=str, default="./SHREC2013/TARGET_MODELS/rendered_models")
+    parser.add_argument("--model_cla_file", type=str, default="./SHREC2013_CLA_files/SHREC13_SBR_Model.cla")
 
     # Training Setting
     parser.add_argument("--sketch_pretrained_ckpt_dir", type=str, default="./ckpt/sketch_pretrained")
@@ -33,7 +45,7 @@ def make_args():
     # Visualization
     parser.add_argument("--save_view", type=bool, default=False)
     parser.add_argument("--save_silhouette", type=bool, default=False)
-    parser.add_argument("--rendering_output_path", type=str, default="./rendering_result")
+    parser.add_argument("--rendering_output_path", type=str, default="./SHREC2013/TARGET_MODELS/rendered_models")
 
     # Hardware Setting
     parser.add_argument("--gpu", type=int, default=0)

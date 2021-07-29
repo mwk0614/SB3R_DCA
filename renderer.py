@@ -1,12 +1,12 @@
-import cv2
 import os
+import cv2
+import glob
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 from skimage.io import imread
 
 from utils import *
-from renderer_utils import *
 from args import make_args
 
 import torch
@@ -67,7 +67,10 @@ class PhongRenderer():
         # Load a mesh & Extend the mesh to the number of view
         mesh = Meshes(verts=[verts], faces=[faces.verts_idx], textures=textures)
         meshes = mesh.extend(self.view_num)
-        # print("Vertices: {}, Faces: {}, View Num: {}".format(verts.shape[0], faces.verts_idx.shape[0], self.view_num))
+        print("=============================")
+        print("File Name: {}".format(obj_filename))
+        print("Vertices: {}, Faces: {}, View Num: {}".format(verts.shape[0], faces.verts_idx.shape[0], self.view_num))
+        print("=============================")
 
         # Setting Rasterizer & Shader
         R, T = look_at_view_transform(dist=self.camera_dist, elev=self.elevation, azim=self.azim_angle)
@@ -96,11 +99,12 @@ class PhongRenderer():
         obj_file_id = (obj_filename.split("/")[-1]).split(".")[0]
         
         if self.args.save_view:
-            output_path = self.args.rendering_output_path + "/" + obj_file_id + "/views"
+            # output_path = self.args.rendering_output_path + "/" + obj_file_id + "/views"
+            output_path = self.args.rendering_output_path
             if not os.path.exists(output_path):
                 os.makedirs(output_path)
             for i in range(rendered_images.shape[0]):
-                rendered_images = rendered_images[i, ..., :3].detach().squeeze().cpu()
+                img = rendered_images[i, ..., :3].detach().squeeze().cpu()
                 img_file = obj_file_id + "_" + str(i) + ".png"
                 Image.fromarray((img.numpy()*255).astype(np.uint8)).save(output_path + "/" + img_file)
 
@@ -133,13 +137,17 @@ if __name__ == "__main__":
     
     # Argument define for example test
     params = {
-        "image_size": 256,
+        "image_size": 224,
         "camera_dist": 1.8,   
         "elevation": [-45,-45,-45,-45,0,0,0,0,45,45,45,45],
         "azim_angle": [0,90,180,270]*3,
-        "obj_filename": "./input/m0.obj"
         }
     args = make_args()
     renderer = PhongRenderer(args, params["image_size"], params["camera_dist"], params["elevation"], params["azim_angle"])
-    images = renderer(params["obj_filename"])
+
+    obj_file_list = sorted(glob.glob(args.model_dir+"/*"))
+    # import ipdb; ipdb.set_trace()
+    print("Total Obj files number: {}".format(len(obj_file_list)))
+    for obj in obj_file_list:
+        images = renderer(obj)
 

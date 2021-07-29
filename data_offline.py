@@ -19,8 +19,10 @@ from utils import *
 from renderer import PhongRenderer
 
 class ModelDataset():
-    def __init__(self, args, renderer):
+    def __init__(self, args):
         '''
+        This data loader makes rendered-model batch offline (from already renderd images)
+
         ## Goal of sampling data ##
 
         Anchor & Positive sketches (1 class, K sketches)
@@ -41,8 +43,9 @@ class ModelDataset():
         '''
 
         # self.C_model = args.C_model
+        self.args = args
+        self.model_dir = args.model_dir
         self.K_model = args.K_model
-        self.renderer = renderer
         self.cla_file = args.model_cla_file
 
         class2model = read_cla(self.cla_file)
@@ -68,8 +71,10 @@ class ModelDataset():
             self.model_list += m
 
     def get_item(self, sampled_cls):
+        view_num = 12
         cls_list = list()
         model_list = list()
+        rendered_models_path_list = list()
         make_tensor = transforms.ToTensor()
         
         # Selected pair with index
@@ -77,25 +82,43 @@ class ModelDataset():
             sampled_models = sorted(random.sample(self.cls2model[c], self.K_model))
             cls_list += [c] * self.K_model
             model_list += sampled_models
+        
+        for model in model_list:
+            assert model[-4:] == ".obj"
+            for v in range(view_num):
+                rendered_models_path_list.append(model[:-4]+"_"+str(v)+".png")
 
         # Make sampled class to torch.tensor
         cls_model = torch.Tensor(cls_list)
 
-        # View rendering for each model
-        decide_expand_dim = True
-        for model in model_list:
-            rendered_model = self.renderer(model)
-            rendered_model = torch.unsqueeze(rendered_model,0)
-            if decide_expand_dim:
-                rendered_models = rendered_model
-                decide_expand_dim = False
+        # Load Rendered View Images
+        save_single_container = True
+        save_multi_container = True
+        view_count = 0
+        for path in rendered_models_path_list:
+            view_count += 1
+            rendered_img_pil = Image.open(path).convert(mode="RGB")
+            rendered_img = make_tensor(rendered_img_pil)
+            rendered_img = torch.unsqueeze(torch.unsqueeze(rendered_img,0),0)
+            if save_single_container:
+                rendered_imgs = rendered_img
+                save_single_container = False
             else:
-                rendered_models = torch.cat((rendered_models, rendered_model),0)
+                rendered_imgs = torch.cat((rendered_imgs, rendered_img),1)
+                if view_count == view_num:
+                    if save_multi_container:
+                        total_rendered_imgs = rendered_imgs
+                        save_multi_container = False
+                    else:
+                        total_rendered_imgs = torch.cat((total_rendered_imgs, rendered_imgs),0)
+                    view_count = 0
+                    save_single_container = True
+            
+        return total_rendered_imgs, cls_model
 
-        return rendered_models, cls_model
 
 class SketchModelDataset(Dataset):
-    def __init__(self, args, renderer, transform=None):
+    def __init__(self, args, transform=None):
         '''
         ## Goal of sampling data ##
 
@@ -121,7 +144,7 @@ class SketchModelDataset(Dataset):
         self.total_sketches_num = 0
 
         # Import ModelDataset
-        self.model_dataset = ModelDataset(args, renderer)
+        self.model_dataset = ModelDataset(args)
 
         # Load whole data (data protocol: class & sketches (index: file_name))
         self.cls_dir = sorted(glob.glob(self.sketch_train_dir + "/*"))
@@ -146,11 +169,6 @@ class SketchModelDataset(Dataset):
         
         self.transform = transform
 
-        ###### transform for train #####
-        self.transform = transforms.Compose([
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
-        ################################
     def __len__(self):
         return self.total_sketches_num
 
@@ -183,22 +201,14 @@ class SketchModelDataset(Dataset):
                 decide_expand_dim = False
             else:
                 sketches = torch.cat((sketches, sketch),0)
+
         # transform input
         if self.transform is not None:
             sketches = self.transform(sketches)
 
         ############ Model Part ############
-        # rendered_models, cls_model = self.model_dataset.get_item(sampled_cls)
-        # rendered_models = rendered_models[:, ... , :3].permute(0,1,4,2,3) # Make shape to [batch, view_num, C, H, W]
-
-        # Unload from GPU for saving GPU Memory
-        # sketches = sketches.detach().to("cpu")
-        # cls_sketch = cls_sketch.detach().to("cpu")
-        # rendered_models = rendered_models.detach().to("cpu")
-        # cls_model = cls_model.detach().to("cpu")
-        
-        return sketches, cls_sketch, self.cls2name
-        # return sketches, cls_sketch, rendered_models, cls_model, self.cls2name
+        rendered_models, cls_model = self.model_dataset.get_item(sampled_cls) # [batch, view_num, C, H, W]
+        return sketches, cls_sketch, rendered_models, cls_model, self.cls2name
 
         
 if __name__ == "__main__":
@@ -207,13 +217,5 @@ if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
-    params = {
-        "image_size": 256,
-        "camera_dist": 1.8,   
-        "elevation": [-45,-45,-45,-45,0,0,0,0,45,45,45,45],
-        "azim_angle": [0,90,180,270]*3,
-        "obj_filename": "./input/m0.obj"
-    }
-    phong_renderer = PhongRenderer(args, params["image_size"], params["camera_dist"], params["elevation"], params["azim_angle"])
-    model_dataset = SketchModelDataset(args, phong_renderer)
+    model_dataset = SketchModelDataset(args)
     model_dataset.__getitem__(1)
