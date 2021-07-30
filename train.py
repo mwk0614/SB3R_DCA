@@ -2,6 +2,7 @@ import os
 import glob
 import matplotlib
 import matplotlib.pyplot as plt
+from termcolor import colored
 
 import torch
 import torch.nn as nn
@@ -15,9 +16,12 @@ from torchvision import datasets, models, transforms
 
 from args import make_args
 from utils import *
+from train_utils import *
+# from renderer import PhongRenderer
+
 from data_offline import SketchModelDataset
-from renderer import PhongRenderer
 from network import MVCNN, MetricCNN, TransformNetwork, Discriminator, average_view_pooling
+from trainer import *
 from loss import IAML_loss, CMD_loss, G_loss, D_loss
 
 '''
@@ -31,276 +35,96 @@ from loss import IAML_loss, CMD_loss, G_loss, D_loss
 
 # def pretrain_sketch(args, data_loader, model, optim):
 
-def train(args, render_params={}):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # mp.set_start_method("spawn")
-    writer = SummaryWriter()
+class Train():
+    def __init__(self, args, render_params={}):
+        # mp.set_start_method("spawn")
+        self.args = args
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    ### Import Phong Renderer ###
-    renderer = PhongRenderer(args, render_params["image_size"], render_params["camera_dist"], render_params["elevation"], render_params["azim_angle"])
+        ### Import Phong Renderer ###
+        # renderer = PhongRenderer(args, render_params["image_size"], render_params["camera_dist"], render_params["elevation"], render_params["azim_angle"])
 
-    ### Dataset(Sketch-Model) & DataLoader ###
-    sketch_transform = transforms.Compose([
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
-    sketch_model_train = SketchModelDataset(args, sketch_transform)
-    train_loader = DataLoader(sketch_model_train, batch_size=1, shuffle=True, num_workers=4)
-    # check_input(train_loader)
-    
-    ### Network ###
-    sketch_cnn = MVCNN()
-    sketch_metric = MetricCNN()
-
-    model_cnn = MVCNN()
-    model_metric = MetricCNN()
-
-    transform_net = TransformNetwork()
-    discriminator = Discriminator()
-
-    if torch.cuda.is_available():
-        sketch_cnn = sketch_cnn.to(device)
-        sketch_metric = sketch_metric.to(device)
-
-        model_cnn = model_cnn.to(device)
-        model_metric = model_metric.to(device)
-
-        transform_net = transform_net.to(device)
-        discriminator = discriminator.to(device)
-
-    ### Optimizer ###
-    sketch_optim_vars = [{"params": sketch_cnn.parameters()}, {"params": sketch_metric.parameters()}]
-    model_optim_vars = [{"params": model_cnn.parameters()}, {"params": model_metric.parameters()}]
-    trans_optim_vars = [{"params": transform_net.parameters()}]
-    disc_optim_vars = [{"params": discriminator.parameters()}]
-
-    sketch_optim = optim.Adam(sketch_optim_vars, lr=args.lr)
-    model_optim = optim.Adam(model_optim_vars, lr=args.lr)
-    trans_optim = optim.Adam(trans_optim_vars, lr=args.lr)
-    disc_optim = optim.Adam(disc_optim_vars, lr=args.lr)
-
-    ### Need to Model parameter Initialization ###
-    '''
-    1) pretraining: All except sketch_cnn, model_cnn(Resnet load)
-    2) not pretraining: All -> after initialization, pretrained paramter will be loaded
-    --> Now, Use default Initialization
-    '''
-
-    if args.pretraining:
+        ### Dataset(Sketch-Model) & DataLoader ###
+        sketch_transform = transforms.Compose([
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
+        sketch_model_train = SketchModelDataset(args, sketch_transform)
+        self.train_loader = DataLoader(sketch_model_train, batch_size=1, shuffle=True, num_workers=4)
         
-        if not os.path.exists(args.sketch_pretrained_ckpt_dir):
-            os.mkdir(args.sketch_pretrained_ckpt_dir)
-        if not os.path.exists(args.model_pretrained_ckpt_dir):
-            os.mkdir(args.model_pretrained_ckpt_dir)
-        if not os.path.exists(args.trans_pretrained_ckpt_dir):
-            os.mkdir(args.trans_pretrained_ckpt_dir)
+        ### Network ###
+        self.sketch_cnn = MVCNN().to(self.device) if torch.cuda.is_available() else MVCNN()
+        self.sketch_metric = MetricCNN().to(self.device) if torch.cuda.is_available() else MetricCNN()
 
-        ''' Step 0-1:  Pre-training sketch '''
-        if '1' in args.pretraining_mode:
-            epoch_count = 0
-            total_iter_count = 0
-            while epoch_count < args.max_epoch:
-                epoch_count += 1
-                print("Start {}th Epoch".format(epoch_count))
-                for i, data in enumerate(train_loader, 0):
-                    total_iter_count += 1
-                    
-                    # Data Load
-                    sketches = data[0].to(device) if torch.cuda.is_available() else data[0]
-                    cls_sketch = data[1].to(device) if torch.cuda.is_available() else data[1]
-                    sketches = torch.squeeze(sketches)
-                    cls_sketch = torch.squeeze(cls_sketch)
-                    
-                    ### Update Sketch CNN & Metric network ###
-                    # sketch_cnn.zero_grad()
-                    # sketch_metric.zero_grad()
-                    sketch_optim.zero_grad()
+        self.model_cnn = MVCNN().to(self.device) if torch.cuda.is_available() else MVCNN()
+        self.model_metric = MetricCNN().to(self.device) if torch.cuda.is_available() else MetricCNN()
 
-                    s_cnn_features = sketch_cnn(sketches)
-                    s_metric_features = sketch_metric(s_cnn_features)
+        self.transform_net = TransformNetwork().to(self.device) if torch.cuda.is_available() else TransformNetwork()
+        self.discriminator = Discriminator().to(self.device) if torch.cuda.is_available() else Discriminator()
 
-                    iaml_loss_sketch = IAML_loss(s_metric_features, s_metric_features, cls_sketch)
-                    iaml_loss_sketch.backward()
-                    sketch_optim.step()
+        ### Optimizer ###
+        sketch_optim_vars = [{"params": self.sketch_cnn.parameters()}, {"params": self.sketch_metric.parameters()}]
+        model_optim_vars = [{"params": self.model_cnn.parameters()}, {"params": self.model_metric.parameters()}]
+        trans_optim_vars = [{"params": self.transform_net.parameters()}]
+        disc_optim_vars = [{"params": self.discriminator.parameters()}]
 
-                    writer.add_scalar("Loss/Sketch_iaml_pre", iaml_loss_sketch, total_iter_count)
-                    if total_iter_count % 100 == 0:
-                        print("Pre-train Sketch network step... Iteration Check: {}".format(total_iter_count))
+        self.sketch_optim = optim.Adam(sketch_optim_vars, lr=args.lr)
+        self.model_optim = optim.Adam(model_optim_vars, lr=args.lr)
+        self.trans_optim = optim.Adam(trans_optim_vars, lr=args.lr)
+        self.disc_optim = optim.Adam(disc_optim_vars, lr=args.lr)
 
-                    if total_iter_count % 1000 == 0:
-                        print("Save Pre-train Sketch network at {} Iteration".format(total_iter_count))
-                        # Save Models
-                        if not os.path.exists(args.sketch_pretrained_ckpt_dir + "/" + str(epoch_count) + "_" + str(total_iter_count)):
-                            os.mkdir(args.sketch_pretrained_ckpt_dir + "/" + str(epoch_count) + "_" + str(total_iter_count))
-                        sketch_cnn_ckpt_path = args.sketch_pretrained_ckpt_dir + "/" + str(epoch_count) + "_" + str(total_iter_count) + "/sketch_cnn_ckpt.pth"
-                        sketch_metric_ckpt_path = args.sketch_pretrained_ckpt_dir + "/" + str(epoch_count) + "_" + str(total_iter_count) + "/sketch_metric_ckpt.pth"
-                        sketch_optim_ckpt_path = args.sketch_pretrained_ckpt_dir + "/" + str(epoch_count) + "_" + str(total_iter_count) + "/sketch_optim_ckpt.pth"
-                        torch.save(sketch_cnn.state_dict(), sketch_cnn_ckpt_path)
-                        torch.save(sketch_metric.state_dict(), sketch_metric_ckpt_path)
-                        torch.save(sketch_optim.state_dict(), sketch_optim_ckpt_path)
+        # For Tensorboard
+        self.writer = SummaryWriter()
 
+    def sketch_pretraining(self):
+        assert "1" in self.args.pretraining_mode
+        self.epoch_count = 0
+        self.total_iter_count = 0
+        while self.epoch_count < self.args.max_epoch:
+            self.epoch_count += 1
+            print("Start {}th Epoch".format(self.epoch_count))
+            sketch_pretrainer(self)
+
+    def model_pretraining(self):
         ''' Step 0-2:  Pre-training model '''
-        if '2' in args.pretraining_mode:
-            epoch_count = 0
-            total_iter_count = 0
-            while epoch_count < args.max_epoch:
-                epoch_count += 1
-                print("Start {}th Epoch".format(epoch_count))
-                for i, data in enumerate(train_loader, 0):
-                    total_iter_count += 1
-                    
-                    # Data Load
-                    rendered_models = data[2].to(device) if torch.cuda.is_available() else data[2]
-                    cls_model = data[3].to(device) if torch.cuda.is_available() else data[3]
-                    rendered_models = torch.squeeze(rendered_models)
-                    cls_model = torch.squeeze(cls_model)
+        self.epoch_count = 0
+        self.total_iter_count = 0
+        while self.epoch_count < self.args.max_epoch:
+            self.epoch_count += 1
+            print("Start {}th Epoch".format(epoch_count))
+            model_pretrainer(self)
 
-                    # model_cnn.zero_grad()
-                    # model_metric.zero_grad()
-                    model_optim.zero_grad()
-
-                    decide_expand_dim = True
-                    view_num = rendered_models.shape[1]
-                    for i in range(view_num):
-                        m_cnn_feature = model_cnn(rendered_models[ : , i, ... ])
-                        if decide_expand_dim:
-                            m_cnn_features_sub = torch.unsqueeze(m_cnn_feature, 1)
-                            decide_expand_dim = False
-                        else:
-                            m_cnn_feature = torch.unsqueeze(m_cnn_feature, 1)
-                            m_cnn_features_sub = torch.cat((m_cnn_features_sub, m_cnn_feature), 1)
-                    m_cnn_features = average_view_pooling(m_cnn_features_sub)
-                    m_metric_features = model_metric(m_cnn_features)
-
-                    iaml_loss_model = IAML_loss(m_metric_features, m_metric_features, cls_model)
-                    iaml_loss_model.backward()
-                    
-                    model_optim.step()
-
-                    writer.add_scalar("Loss/Model_iaml_pre", iaml_loss_model, total_iter_count)
-
-                    if total_iter_count % 100 == 0:
-                        print("Pre-train Model network step... Iteration Check: {}".format(total_iter_count))
-
-                    if total_iter_count % 1000 == 0:
-                        print("Save Pre-train Model network at {} Iteration".format(total_iter_count))
-
-                        if not os.path.exists(args.model_pretrained_ckpt_dir + "/" + str(epoch_count) + "_" + str(total_iter_count)):
-                            os.mkdir(args.model_pretrained_ckpt_dir + "/" + str(epoch_count) + "_" + str(total_iter_count))
-                        # Save Models                    
-                        model_cnn_ckpt_path = args.model_pretrained_ckpt_dir  + "/" + str(epoch_count) + "_" + str(total_iter_count) + "/model_cnn_ckpt.pth"
-                        model_metric_ckpt_path = args.model_pretrained_ckpt_dir  + "/" + str(epoch_count) + "_" + str(total_iter_count) + "/model_metric_ckpt.pth"
-                        model_optim_ckpt_path = args.model_pretrained_ckpt_dir  + "/" + str(epoch_count) + "_" + str(total_iter_count) + "/model_optim_ckpt.pth"
-                        torch.save(model_cnn.state_dict(), model_cnn_ckpt_path)
-                        torch.save(model_metric.state_dict(), model_metric_ckpt_path)
-                        torch.save(model_optim.state_dict(), model_optim_ckpt_path)
+    def trans_pretraining(self):
 
         ''' Step 0-3:  Pre-training Transformation Network '''
         if '3' in args.pretraining_mode:
             ### Load Pre-trained Networks (sketch, model) ###
-            sketch_ckpt_dir_list = sorted(glob.glob(args.sketch_pretrained_ckpt_dir + "/*"))
+            sketch_ckpt_dir_list = sorted(glob.glob("{}/".format(args.trials) + args.sketch_pretrained_ckpt_dir + "/*"))
             sketch_load_ckpt_dir = sketch_ckpt_dir_list[-1]
             sketch_ckpt_list = sorted(glob.glob(sketch_load_ckpt_dir+"/*"))
 
-            sketch_cnn.load_state_dict(torch.load([ckpt for ckpt in sketch_ckpt_list if "cnn" in ckpt][0]))
-            sketch_metric.load_state_dict(torch.load([ckpt for ckpt in sketch_ckpt_list if "metric" in ckpt][0]))
+            self.sketch_cnn.load_state_dict(torch.load([ckpt for ckpt in sketch_ckpt_list if "cnn" in ckpt][0]))
+            self.sketch_metric.load_state_dict(torch.load([ckpt for ckpt in sketch_ckpt_list if "metric" in ckpt][0]))
 
-            model_ckpt_dir_list = sorted(glob.glob(args.model_pretrained_ckpt_dir + "/*"))
+            model_ckpt_dir_list = sorted(glob.glob("{}/".format(args.trials) + args.model_pretrained_ckpt_dir + "/*"))
             model_load_ckpt_dir = model_ckpt_dir_list[-1]
             model_ckpt_list = sorted(glob.glob(model_load_ckpt_dir+"/*"))
 
-            model_cnn.load_state_dict(torch.load([ckpt for ckpt in model_ckpt_list if "cnn" in ckpt][0]))
-            model_metric.load_state_dict(torch.load([ckpt for ckpt in model_ckpt_list if "metric" in ckpt][0]))
+            self.model_cnn.load_state_dict(torch.load([ckpt for ckpt in model_ckpt_list if "cnn" in ckpt][0]))
+            self.model_metric.load_state_dict(torch.load([ckpt for ckpt in model_ckpt_list if "metric" in ckpt][0]))
 
             ### Update Transformation Network ###
-            total_iter_count = 0
-            epoch_count = 0
-            while epoch_count < args.max_epoch:
-                epoch_count += 1
-                print("Start {}th Epoch".format(epoch_count))
-                for i, data in enumerate(train_loader, 0):
-                    total_iter_count += 1
-                    # Data Load
-                    sketches = data[0].to(device) if torch.cuda.is_available() else data[0]
-                    cls_sketch = data[1].to(device) if torch.cuda.is_available() else data[1]
-                    rendered_models = data[2].to(device) if torch.cuda.is_available() else data[2]
-                    cls_model = data[3].to(device) if torch.cuda.is_available() else data[3]
+            self.total_iter_count = 0
+            self.epoch_count = 0
+            while self.epoch_count < args.max_epoch:
+                self.epoch_count += 1
+                print("Start {}th Epoch".format(self.epoch_count))
+                trans_pretrainer(self)
 
-                    sketches = torch.squeeze(sketches)
-                    cls_sketch = torch.squeeze(cls_sketch)
-                    rendered_models = torch.squeeze(rendered_models)
-                    cls_model = torch.squeeze(cls_model)
-
-                    ## Gradient Initialization
-                    sketch_cnn.zero_grad()
-                    sketch_metric.zero_grad()
-
-                    model_cnn.zero_grad()
-                    model_metric.zero_grad()
-
-                    transform_net.zero_grad()
-                    discriminator.zero_grad()
-                    # trans_optim.zero_grad()
-
-                    # Sketch network forward
-                    s_cnn_features = sketch_cnn(sketches)
-                    s_metric_features = sketch_metric(s_cnn_features)
-
-                    # CAD Model network forward
-                    decide_expand_dim = True
-                    view_num = rendered_models.shape[1]
-                    for i in range(view_num):
-                        m_cnn_feature = model_cnn(rendered_models[ : , i, ... ])
-                        if decide_expand_dim:
-                            m_cnn_features_sub = torch.unsqueeze(m_cnn_feature, 1)
-                            decide_expand_dim = False
-                        else:
-                            m_cnn_feature = torch.unsqueeze(m_cnn_feature, 1)
-                            m_cnn_features_sub = torch.cat((m_cnn_features_sub, m_cnn_feature), 1)
-                    m_cnn_features = average_view_pooling(m_cnn_features_sub)
-                    m_metric_features = model_metric(m_cnn_features)
-                    
-                    # Transformation network forward
-                    trans_features = transform_net(s_metric_features)
-
-                    # Discriminator network forward
-                    trans_disc = discriminator(trans_features)
-                    model_disc = discriminator(m_metric_features)
-
-                    # Loss
-                    trans_loss = IAML_loss(trans_features, trans_features, cls_sketch) + \
-                        (G_loss(trans_disc) + CMD_loss(trans_features, m_metric_features, cls_sketch, cls_model))
-                    disc_loss = D_loss(model_disc, trans_disc)
-
-                    trans_disc_loss = (trans_loss + disc_loss)/2
-                    trans_disc_loss.backward()
-
-                    trans_optim.step()
-
-                    writer.add_scalar("Loss/Trans_trans_pre", trans_loss, total_iter_count)
-                    writer.add_scalar("Loss/Trans_disc_pre", disc_loss, total_iter_count)
-                    writer.add_scalar("Loss/Trans_trans_disc_pre", trans_disc_loss, total_iter_count)
-
-                    if total_iter_count % 100 == 0:
-                        print("Pre-train Transformation network step... Iteration Check: {}".format(total_iter_count))
-                        print("Trans loss: {}, Disc loss: {}, Sum of both: {}".format(trans_loss, disc_loss, trans_disc_loss))
-
-                    if total_iter_count % 5000 == 0:
-                        print("Save Pre-train Transformation network at {} Iteration".format(total_iter_count))
-
-                        if not os.path.exists(args.trans_pretrained_ckpt_dir + "/" + str(epoch_count) + "_" + str(total_iter_count)):
-                            os.mkdir(args.trans_pretrained_ckpt_dir + "/" + str(epoch_count) + "_" + str(total_iter_count))
-
-                        # Save Models                    
-                        transform_net_ckpt_path = args.trans_pretrained_ckpt_dir  + "/" + str(epoch_count) + "_" + str(total_iter_count) + "/transform_net_ckpt.pth"
-                        trans_optim_ckpt_path = args.trans_pretrained_ckpt_dir  + "/" + str(epoch_count) + "_" + str(total_iter_count) + "/trans_optim_ckpt.pth"
-                        torch.save(transform_net.state_dict(), transform_net_ckpt_path)
-                        torch.save(trans_optim.state_dict(), trans_optim_ckpt_path)
-
-    else:
+    def whole_training(self):
         '''Iterative Update all networks'''
         ### Load Pre-trained Networks (sketch, model, transform network) ###
         # Sketch
-        sketch_ckpt_dir_list = sorted(glob.glob(args.sketch_pretrained_ckpt_dir + "/*"))
+        sketch_ckpt_dir_list = sorted(glob.glob("{}/".format(args.trials) + args.sketch_pretrained_ckpt_dir + "/*"))
         sketch_load_ckpt_dir = sketch_ckpt_dir_list[-1]
         sketch_ckpt_list = sorted(glob.glob(sketch_load_ckpt_dir+"/*"))
 
@@ -308,7 +132,7 @@ def train(args, render_params={}):
         sketch_metric.load_state_dict(torch.load([ckpt for ckpt in sketch_ckpt_list if "metric" in ckpt][0]))
 
         # Model
-        model_ckpt_dir_list = sorted(glob.glob(args.model_pretrained_ckpt_dir + "/*"))
+        model_ckpt_dir_list = sorted(glob.glob("{}/".format(args.trials) + args.model_pretrained_ckpt_dir + "/*"))
         model_load_ckpt_dir = model_ckpt_dir_list[-1]
         model_ckpt_list = sorted(glob.glob(model_load_ckpt_dir+"/*"))
 
@@ -316,91 +140,18 @@ def train(args, render_params={}):
         model_metric.load_state_dict(torch.load([ckpt for ckpt in model_ckpt_list if "metric" in ckpt][0]))
 
         # Transform Network
-        trans_ckpt_dir_list = sorted(glob.glob(args.trans_pretrained_ckpt_dir + "/*"))
+        trans_ckpt_dir_list = sorted(glob.glob("{}/".format(args.trials) + args.trans_pretrained_ckpt_dir + "/*"))
         trans_load_ckpt_dir = trans_ckpt_dir_list[-1]
         trans_ckpt_list = sorted(glob.glob(trans_load_ckpt_dir+"/*"))
 
         transform_net.load_state_dict(torch.load([ckpt for ckpt in trans_ckpt_list if "net" in ckpt][0]))
 
-        total_iter_count = 0
-        while total_iter_count < args.max_iter:
-            for i, data in enumerate(train_loader, 0):
-                total_iter_count += 1
-
-                # Data Load
-                sketches = data[0].to(device) if torch.cuda.is_available() else data[0]
-                cls_sketch = data[1].to(device) if torch.cuda.is_available() else data[1]
-                rendered_models = data[2].to(device) if torch.cuda.is_available() else data[2]
-                cls_model = data[3].to(device) if torch.cuda.is_available() else data[3]
-
-                sketches = torch.squeeze(sketches)
-                cls_sketch = torch.squeeze(cls_sketch)
-                rendered_models = torch.squeeze(rendered_models)
-                cls_model = torch.squeeze(cls_model)
-
-                ## Sketch Network update
-                sketch_cnn.zero_grad()
-                sketch_metric.zero_grad()
-                model_cnn.zero_grad()
-                model_metric.zero_grad()
-                transform_net.zero_grad()
-                discriminator.zero_grad()
-
-                s_cnn_features = sketch_cnn(sketches)
-                s_metric_features = sketch_metric(s_cnn_features)
-
-                decide_expand_dim = True
-                view_num = rendered_models.shape[1]
-                for i in range(view_num):
-                    m_cnn_feature = model_cnn(rendered_models[ : , i, ... ])
-                    if decide_expand_dim:
-                        m_cnn_features_sub = torch.unsqueeze(m_cnn_feature, 1)
-                        decide_expand_dim = False
-                    else:
-                        m_cnn_feature = torch.unsqueeze(m_cnn_feature, 1)
-                        m_cnn_features_sub = torch.cat((m_cnn_features_sub, m_cnn_feature), 1)
-                m_cnn_features = average_view_pooling(m_cnn_features_sub)
-                m_metric_features = model_metric(m_cnn_features)
-
-                trans_features = transform_net(s_metric_features)
-                trans_disc = discriminator(trans_features)
-                model_disc = discriminator(m_metric_features)
-
-                iaml_loss_sketch = IAML_loss(s_metric_features.clone(),s_metric_features.clone(),cls_sketch.clone())
-                iaml_loss_model = IAML_loss(m_metric_features.clone(),m_metric_features.clone(),cls_model.clone())
-                trans_loss = IAML_loss(trans_features, trans_features, cls_sketch) + \
-                    (G_loss(trans_disc) + CMD_loss(trans_features, m_metric_features, cls_sketch, cls_model))
-                disc_loss = D_loss(model_disc, trans_disc)
-
-
-                iaml_loss_sketch.backward(retain_graph=True)
-                sketch_optim.step()
-
-                iaml_loss_model.backward(retain_graph=True)
-                model_optim.step()
-
-                trans_loss.backward(retain_graph=True)
-                trans_optim.step()
-
-                disc_loss.backward()
-                disc_optim.step()
-
-                writer.add_scalar("Loss/Sketch_loss", iaml_loss_sketch, total_iter_count)
-                writer.add_scalar("Loss/Model_loss", iaml_loss_model, total_iter_count)
-                writer.add_scalar("Loss/Trans_loss", trans_loss, total_iter_count)
-                writer.add_scalar("Loss/Disc_loss", disc_loss, total_iter_count)
-
-            if total_iter_count % 100 == 0:
-                print("Whole Training step... Iteration Check: {}".format(total_iter_count))
-
-            # # Save Models, 
-            # model_cnn_ckpt_path = args.model_pretrained_ckpt_dir + "/model_cnn_ckpt_" + str(epoch_count) + ".pth"
-            # model_metric_ckpt_path = args.model_pretrained_ckpt_dir + "/model_metric_ckpt_" + str(epoch_count) + ".pth"
-            # model_optim_ckpt_path = args.model_pretrained_ckpt_dir + "/model_optim_ckpt_" + str(epoch_count) + ".pth"
-            # torch.save(model_cnn.state_dict(), model_cnn_ckpt_path)
-            # torch.save(model_metric.state_dict(), model_metric_ckpt_path)
-            # torch.save(model_optim.state_dict(), model_optim_ckpt_path)
-    
+        self.total_iter_count = 0
+        self.epoch_count = 0
+        while self.total_iter_count < args.max_iter:
+            self.epoch_count += 1
+            print("Start {}th Epoch".format(self.epoch_count))
+            whole_trainer(self)
 
 if __name__ == "__main__":
     args = make_args()
@@ -412,13 +163,13 @@ if __name__ == "__main__":
     print("Pretraining or not: {}".format(args.pretraining))
     print("Pretraining Mode: {}".format(args.pretraining_mode))
 
-    # Random setting?
-    render_params = {
-        "image_size": 224,
-        "camera_dist": 1.8,   
-        "elevation": [-45,-45,-45,-45,0,0,0,0,45,45,45,45],
-        "azim_angle": [0,90,180,270]*3,
-    }
-
-    train(args, render_params)
-    import ipdb; ipdb.set_trace(context=21)
+    trainer_container = Train(args)
+    if args.pretraining:
+        if "1" in args.pretraining_mode:
+            trainer_container.sketch_pretraining()
+        if "2" in args.pretraining_mode:
+            trainer_container.model_pretraining()
+        if "3" in args.pretraining_mode:
+            trainer_container.trans_pretraining()
+    else:
+        trainer_container.whole_trainer()

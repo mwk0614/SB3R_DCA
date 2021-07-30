@@ -16,6 +16,7 @@ def make_args():
     parser.add_argument("--img_size", type=int, help="Rendered image size")
     parser.add_argument("--pretraining", type=str2bool, default=True)
     parser.add_argument("--pretraining_mode", type=str, default="1234")
+    parser.add_argument("--trials", type=int, default=0)
 
     # Data Path
     parser.add_argument("--sketch_train_dir", type=str, default="./SHREC2013/TRAINING_SKETCHES_resized/TRAINING_SKETCHES")

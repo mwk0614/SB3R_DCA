@@ -16,7 +16,7 @@ from torchvision.io import read_image
 
 from args import make_args
 from utils import *
-from renderer import PhongRenderer
+# from renderer import PhongRenderer
 
 class ModelDataset():
     def __init__(self, args):
