@@ -79,7 +79,7 @@ class Train():
         assert "1" in self.args.pretraining_mode
         if self.args.sketch_global_step != 0:
             load_ckpt(self, pretraining=True, mode="sketch")
-            
+
         self.epoch_count = 0
         self.global_step = self.args.sketch_global_step
         while self.epoch_count < self.args.max_epoch:
@@ -126,24 +126,3 @@ class Train():
             self.epoch_count += 1
             print("Start {}th Epoch".format(self.epoch_count))
             whole_trainer(self)
-
-# if __name__ == "__main__":
-#     args = make_args()
-
-#     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-#     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-
-#     print("Working GPU: {}".format(args.gpu))
-#     print("Pretraining or not: {}".format(args.pretraining))
-#     print("Pretraining Mode: {}".format(args.pretraining_mode))
-
-#     trainer_container = Train(args)
-#     if args.pretraining:
-#         if "1" in args.pretraining_mode:
-#             trainer_container.sketch_pretraining()
-#         if "2" in args.pretraining_mode:
-#             trainer_container.model_pretraining()
-#         if "3" in args.pretraining_mode:
-#             trainer_container.trans_pretraining()
-#     else:
-#         trainer_container.whole_trainer()

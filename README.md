@@ -6,10 +6,10 @@ Implemention of a paper DCA (Deep Cross-modality Adaptation via Semantics Preser
 - tensorboard v2.5.0
 
 # To Do
-- [] Save checkpoint when KeyInterrupt occured
-- [] Load intermediate checkpoint
+- [O] Load intermediate checkpoint
 - [] Test DataLoader
 - [] Test Code
 - [] Evaluation Code
 - [] DataLoader Transformation check
+- [] Save checkpoint when KeyInterrupt occured
 
