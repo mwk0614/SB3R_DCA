@@ -6,7 +6,7 @@ from network import average_view_pooling
 
 def sketch_pretrainer(self):
     for i, data in enumerate(self.train_loader, 0):
-        self.total_iter_count += 1
+        self.global_step += 1
         # Data Load
         sketches = data[0].to(self.device) if torch.cuda.is_available() else data[0]
         cls_sketch = data[1].to(self.device) if torch.cuda.is_available() else data[1]
@@ -24,20 +24,19 @@ def sketch_pretrainer(self):
         iaml_loss_sketch.backward()
         self.sketch_optim.step()
 
-        self.writer.add_scalar("Loss/Sketch_iaml_pre", iaml_loss_sketch, self.total_iter_count)
-        if self.total_iter_count % 100 == 0:
+        self.writer.add_scalar("Loss/Sketch_iaml_pre", iaml_loss_sketch, self.global_step)
+        if self.global_step % 100 == 0:
             print("=====================================================")
-            print(colored("Pre-train Sketch network step... Iteration Check: {}".format(self.total_iter_count),"blue"))
+            print(colored("Pre-train Sketch network step... Iteration Check: {}".format(self.global_step),"blue"))
             print("Sketch Loss: {}".format(iaml_loss_sketch))
 
-        if self.total_iter_count % 5000 == 0:
-            print(colored("Save Pre-train Sketch network at {} Iteration".format(self.total_iter_count), "red"))
-            trained_models = {"sketch_cnn": self.sketch_cnn, "sketch_metric": self.sketch_metric, "sketch_optim": self.sketch_optim}
-            save_ckpt(self.epoch_count, self.total_iter_count, pretraining=True, models=trained_models, mode="sketch")
+        if self.global_step % 5000 == 0:
+            print(colored("Save Pre-train Sketch network at {} Iteration".format(self.global_step), "red"))
+            save_ckpt(self, pretraining=True, mode="sketch")
 
 def model_pretrainer(self):
     for i, data in enumerate(self.train_loader, 0):
-        self.total_iter_count += 1
+        self.global_step += 1
 
         # Data Load
         rendered_models = data[2].to(self.device) if torch.cuda.is_available() else data[2]
@@ -67,21 +66,20 @@ def model_pretrainer(self):
         
         self.model_optim.step()
 
-        self.writer.add_scalar("Loss/Model_iaml_pre", iaml_loss_model, self.total_iter_count)
+        self.writer.add_scalar("Loss/Model_iaml_pre", iaml_loss_model, self.global_step)
 
-        if self.total_iter_count % 100 == 0:
+        if self.global_step % 100 == 0:
             print("=====================================================")    
-            print(colored("Pre-train Model network step... Iteration Check: {}".format(self.total_iter_count),"blue"))
+            print(colored("Pre-train Model network step... Iteration Check: {}".format(self.global_step),"blue"))
             print("Model Loss: {}".format(iaml_loss_model))
 
-        if self.total_iter_count % 5000 == 0:
-            print(colored("Save Pre-train Model network at {} Iteration".format(self.total_iter_count),"red"))
-            trained_models = {"model_cnn": self.model_cnn, "model_metric": self.model_metric, "model_optim": self.model_optim}
-            save_ckpt(self.epoch_count, self.total_iter_count, pretraining=True, models=trained_models, mode="model")
+        if self.global_step % 5000 == 0:
+            print(colored("Save Pre-train Model network at {} Iteration".format(self.global_step),"red"))
+            save_ckpt(self, pretraining=True, mode="model")
 
 def trans_pretrainer(self):
     for i, data in enumerate(self.train_loader, 0):
-        self.total_iter_count += 1
+        self.global_step += 1
         # Data Load
         sketches = data[0].to(self.device) if torch.cuda.is_available() else data[0]
         cls_sketch = data[1].to(self.device) if torch.cuda.is_available() else data[1]
@@ -138,23 +136,22 @@ def trans_pretrainer(self):
 
         self.trans_optim.step()
 
-        self.writer.add_scalar("Loss/Trans_trans_pre", trans_loss, self.total_iter_count)
-        self.writer.add_scalar("Loss/Trans_disc_pre", disc_loss, self.total_iter_count)
-        self.writer.add_scalar("Loss/Trans_trans_disc_pre", trans_disc_loss, self.total_iter_count)
+        self.writer.add_scalar("Loss/Trans_trans_pre", trans_loss, self.global_step)
+        self.writer.add_scalar("Loss/Trans_disc_pre", disc_loss, self.global_step)
+        self.writer.add_scalar("Loss/Trans_trans_disc_pre", trans_disc_loss, self.global_step)
 
-        if self.total_iter_count % 100 == 0:
+        if self.global_step % 100 == 0:
             print("=====================================================")    
-            print("Pre-train Transformation network step... Iteration Check: {}".format(self.total_iter_count))
+            print("Pre-train Transformation network step... Iteration Check: {}".format(self.global_step))
             print("Trans loss: {}, Disc loss: {}, Sum of both: {}".format(trans_loss, disc_loss, trans_disc_loss))
 
-        if self.total_iter_count % 5000 == 0:
-            print("Save Pre-train Transformation network at {} Iteration".format(self.total_iter_count))
-            trained_models = {"transform_net": self.transform_net, "trans_optim": self.trans_optim}
-            save_ckpt(self.epoch_count, self.total_iter_count, pretraining=True, models=trained_models, mode="trans")
+        if self.global_step % 5000 == 0:
+            print("Save Pre-train Transformation network at {} Iteration".format(self.global_step))
+            save_ckpt(self, pretraining=True, mode="trans")
 
 def whole_trainer(self):
     for i, data in enumerate(self.train_loader, 0):
-        self.total_iter_count += 1
+        self.global_step += 1
 
         # Data Load
         sketches = data[0].to(self.device) if torch.cuda.is_available() else data[0]
@@ -205,28 +202,25 @@ def whole_trainer(self):
             (G_loss(trans_disc) + CMD_loss(trans_features, m_metric_features, cls_sketch, cls_model))
         disc_loss = D_loss(model_disc, trans_disc)
 
-        trans_loss.backward(retain_graph=True, inputs=list(transform_net.parameters()))
+        trans_loss.backward(retain_graph=True, inputs=list(self.transform_net.parameters()))
         self.trans_optim.step()
 
-        disc_loss.backward(inputs=list(discriminator.parameters()))
+        disc_loss.backward(inputs=list(self.discriminator.parameters()))
         self.disc_optim.step()
 
-        self.writer.add_scalar("Loss/Sketch_loss", iaml_loss_sketch, self.total_iter_count)
-        self.writer.add_scalar("Loss/Model_loss", iaml_loss_model, self.total_iter_count)
-        self.writer.add_scalar("Loss/Trans_loss", trans_loss, self.total_iter_count)
-        self.writer.add_scalar("Loss/Disc_loss", disc_loss, self.total_iter_count)
+        self.writer.add_scalar("Loss/Sketch_loss", iaml_loss_sketch, self.global_step)
+        self.writer.add_scalar("Loss/Model_loss", iaml_loss_model, self.global_step)
+        self.writer.add_scalar("Loss/Trans_loss", trans_loss, self.global_step)
+        self.writer.add_scalar("Loss/Disc_loss", disc_loss, self.global_step)
 
-        if self.total_iter_count % 100 == 0:
-            print("Total Iterative Network... Iteration Check: {}".format(self.total_iter_count))
+        if self.global_step % 100 == 0:
+            print("Total Iterative Network... Iteration Check: {}".format(self.global_step))
             print("Sketch loss: {}, Model loss: {}".format(iaml_loss_sketch, iaml_loss_model))
             print("Trans loss: {}, Disc loss: {}, Sum of both: {}".format(trans_loss, disc_loss, (trans_loss+disc_loss)/2))
 
-        if self.total_iter_count % 5000 == 0:
-            print("Save Networks parameters at {} Iteration".format(self.total_iter_count))
-            trained_models = {"sketch_cnn": self.sketch_cnn, "sketch_metric": self.sketch_metric, "sketch_optim": self.sketch_optim,\
-                                "model_cnn": self.model_cnn, "model_metric": self.model_metric, "model_optim": self.model_optim,\
-                                "transform_net": self.transform_net, "trans_optim": self.trans_optim}
-            save_ckpt(self.epoch_count, self.total_iter_count, pretraining=False, models=trained_models)
+        if self.global_step % 3000 == 0:
+            print("Save Networks parameters at {} Iteration".format(self.global_step))
+            save_ckpt(self, pretraining=False)
             
 
 

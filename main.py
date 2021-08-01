@@ -13,7 +13,7 @@ def train(args):
         if "3" in args.pretraining_mode:
             trainer_container.trans_pretraining()
     else:
-        trainer_container.whole_trainer()
+        trainer_container.whole_training()
 
 def test(args):
     raise NotImplementedError

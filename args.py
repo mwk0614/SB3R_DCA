@@ -18,6 +18,11 @@ def make_args():
     parser.add_argument("--pretraining_mode", type=str, default="1234")
     parser.add_argument("--trials", type=int, default=0)
 
+    parser.add_argument("--sketch_global_step", type=int, default=0)
+    parser.add_argument("--model_global_step", type=int, default=0)
+    parser.add_argument("--trans_global_step", type=int, default=0)
+    parser.add_argument("--whole_global_step", type=int, default=0)
+
     # Data Path
     parser.add_argument("--sketch_train_dir", type=str, default="./SHREC2013/TRAINING_SKETCHES_resized/TRAINING_SKETCHES")
     parser.add_argument("--sketch_test_dir", type=str, default="./SHREC2013/TESTING_SKETCHES")
@@ -30,6 +35,7 @@ def make_args():
     parser.add_argument("--sketch_pretrained_ckpt_dir", type=str, default="sketch_pretrained")
     parser.add_argument("--model_pretrained_ckpt_dir", type=str, default="model_pretrained")
     parser.add_argument("--trans_pretrained_ckpt_dir", type=str, default="trans_pretrained")
+    parser.add_argument("--whole_ckpt_dir", type=str, default="networks")
 
     parser.add_argument("--max_iter", type=int, default=30000, help="the number of the maximal iterative")
     parser.add_argument("--max_epoch", type=int, default=50, help="the number of the maximal epoch")
