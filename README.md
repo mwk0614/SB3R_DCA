@@ -5,6 +5,9 @@ Implemention of a paper DCA (Deep Cross-modality Adaptation via Semantics Preser
 - pytorch v1.8.1
 - tensorboard v2.5.0
 
+# Usage
+python main.py
+
 # To Do
 - [O] Load intermediate checkpoint
 - [] Test DataLoader
@@ -12,4 +15,6 @@ Implemention of a paper DCA (Deep Cross-modality Adaptation via Semantics Preser
 - [] Evaluation Code
 - [] DataLoader Transformation check
 - [] Save checkpoint when KeyInterrupt occured
+
+
 
