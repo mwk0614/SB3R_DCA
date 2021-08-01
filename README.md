@@ -3,6 +3,8 @@ Implemention of a paper DCA (Deep Cross-modality Adaptation via Semantics Preser
 
 # Environment
 - pytorch v1.8.1
+- torchvision v0.9.1
+- cuda-toolkit v10.2
 - tensorboard v2.5.0
 
 # Usage
