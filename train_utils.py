@@ -9,13 +9,14 @@ def check_path(path):
         os.makedirs(path)
     # return None
 
-def save_ckpt(epoch, iter, pretraining=False, models={}, mode="1234"):
+def save_ckpt(epoch, iter, pretraining=False, models={}, mode="sketch"):
+    # mode could be "sketch","model","trans"
     # Check if saved path exists
     if pretraining:
-        if "1" in mode:
-            sketch_cnn_ckpt_path = "{}/".format(args.trials) + args.sketch_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
-            sketch_metric_ckpt_path = "{}/".format(args.trials) + args.sketch_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
-            sketch_optim_ckpt_path = "{}/".format(args.trials) + args.sketch_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
+        if mode == "sketch":
+            sketch_cnn_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.sketch_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
+            sketch_metric_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.sketch_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
+            sketch_optim_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.sketch_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
 
             check_path(sketch_cnn_ckpt_path)
             check_path(sketch_metric_ckpt_path)
@@ -25,10 +26,10 @@ def save_ckpt(epoch, iter, pretraining=False, models={}, mode="1234"):
             torch.save(models["sketch_metric"], sketch_metric_ckpt_path + "/sketch_metric_ckpt.pth")
             torch.save(models["sketch_optim"], sketch_optim_ckpt_path + "/sketch_optim_ckpt.pth")
 
-        if "2" in mode:
-            model_cnn_ckpt_path = "{}/".format(args.trials) + args.model_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
-            model_metric_ckpt_path = "{}/".format(args.trials) + args.model_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
-            model_optim_ckpt_path = "{}/".format(args.trials) + args.model_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
+        if mode == "model":
+            model_cnn_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.model_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
+            model_metric_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.model_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
+            model_optim_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.model_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
 
             check_path(model_cnn_ckpt_path)
             check_path(model_metric_ckpt_path)
@@ -38,9 +39,9 @@ def save_ckpt(epoch, iter, pretraining=False, models={}, mode="1234"):
             torch.save(models["model_metric"], model_metric_ckpt_path + "/model_metric_ckpt.pth")
             torch.save(models["model_optim"], model_optim_ckpt_path + "/model_optim_ckpt.pth")
 
-        if "3" in mode:
-            transform_net_ckpt_path = "{}/".format(args.trials) + args.trans_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
-            trans_optim_ckpt_path = "{}/".format(args.trials) + args.trans_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
+        if mode == "trans":
+            transform_net_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.trans_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
+            trans_optim_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.trans_pretrained_ckpt_dir + "/" + "{}_{}".format(str(epoch), str(iter))
 
             check_path(transform_net_ckpt_path)
             check_path(trans_optim_ckpt_path)
@@ -49,16 +50,16 @@ def save_ckpt(epoch, iter, pretraining=False, models={}, mode="1234"):
             torch.save(models["trans_optim"], trans_optim_ckpt_path + "/trans_optim_ckpt.pth")
 
     else:
-        sketch_cnn_ckpt_path = "{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter))
-        sketch_metric_ckpt_path = "{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter))
-        sketch_optim_ckpt_path = "{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter)) 
+        sketch_cnn_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter))
+        sketch_metric_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter))
+        sketch_optim_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter)) 
 
-        model_cnn_ckpt_path = "{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter)) 
-        model_metric_ckpt_path = "{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter))
-        model_optim_ckpt_path = "{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter)) 
+        model_cnn_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter)) 
+        model_metric_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter))
+        model_optim_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter)) 
 
-        transform_net_ckpt_path = "{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter))
-        trans_optim_ckpt_path = "{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter))
+        transform_net_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter))
+        trans_optim_ckpt_path = args.ckpt_dir + "/{}/".format(args.trials) + args.networks + "/" + "{}_{}".format(str(epoch), str(iter))
 
         check_path(sketch_cnn_ckpt_path)
         check_path(sketch_metric_ckpt_path)

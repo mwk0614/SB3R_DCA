@@ -1,12 +1,5 @@
+import os
 from args import make_args
-import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-from PIL import Image
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
 
 from train import Train
 
@@ -21,6 +14,9 @@ def train(args):
             trainer_container.trans_pretraining()
     else:
         trainer_container.whole_trainer()
+
+def test(args):
+    raise NotImplementedError
 
 if __name__ == "__main__":
     args = make_args()

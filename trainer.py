@@ -2,6 +2,7 @@ from train_utils import *
 import torch
 from termcolor import colored
 from loss import IAML_loss, CMD_loss, G_loss, D_loss
+from network import average_view_pooling
 
 def sketch_pretrainer(self):
     for i, data in enumerate(self.train_loader, 0):
@@ -28,12 +29,11 @@ def sketch_pretrainer(self):
             print("=====================================================")
             print(colored("Pre-train Sketch network step... Iteration Check: {}".format(self.total_iter_count),"blue"))
             print("Sketch Loss: {}".format(iaml_loss_sketch))
-            print("=====================================================")
 
         if self.total_iter_count % 5000 == 0:
             print(colored("Save Pre-train Sketch network at {} Iteration".format(self.total_iter_count), "red"))
             trained_models = {"sketch_cnn": self.sketch_cnn, "sketch_metric": self.sketch_metric, "sketch_optim": self.sketch_optim}
-            save_ckpt(self.epoch_count, self.total_iter_count, pretraining=True, models=trained_models, mode=self.args.pretraining_mode)
+            save_ckpt(self.epoch_count, self.total_iter_count, pretraining=True, models=trained_models, mode="sketch")
 
 def model_pretrainer(self):
     for i, data in enumerate(self.train_loader, 0):
@@ -73,12 +73,11 @@ def model_pretrainer(self):
             print("=====================================================")    
             print(colored("Pre-train Model network step... Iteration Check: {}".format(self.total_iter_count),"blue"))
             print("Model Loss: {}".format(iaml_loss_model))
-            print("=====================================================")
 
         if self.total_iter_count % 5000 == 0:
             print(colored("Save Pre-train Model network at {} Iteration".format(self.total_iter_count),"red"))
             trained_models = {"model_cnn": self.model_cnn, "model_metric": self.model_metric, "model_optim": self.model_optim}
-            save_ckpt(self.epoch_count, self.total_iter_count, pretraining=True, models=trained_models, mode=self.args.pretraining_mode)
+            save_ckpt(self.epoch_count, self.total_iter_count, pretraining=True, models=trained_models, mode="model")
 
 def trans_pretrainer(self):
     for i, data in enumerate(self.train_loader, 0):
@@ -144,13 +143,14 @@ def trans_pretrainer(self):
         self.writer.add_scalar("Loss/Trans_trans_disc_pre", trans_disc_loss, self.total_iter_count)
 
         if self.total_iter_count % 100 == 0:
+            print("=====================================================")    
             print("Pre-train Transformation network step... Iteration Check: {}".format(self.total_iter_count))
             print("Trans loss: {}, Disc loss: {}, Sum of both: {}".format(trans_loss, disc_loss, trans_disc_loss))
 
         if self.total_iter_count % 5000 == 0:
             print("Save Pre-train Transformation network at {} Iteration".format(self.total_iter_count))
             trained_models = {"transform_net": self.transform_net, "trans_optim": self.trans_optim}
-            save_ckpt(self.epoch_count, self.total_iter_count, pretraining=True, models=trained_models, mode=self.args.pretraining_mode)
+            save_ckpt(self.epoch_count, self.total_iter_count, pretraining=True, models=trained_models, mode="trans")
 
 def whole_trainer(self):
     for i, data in enumerate(self.train_loader, 0):

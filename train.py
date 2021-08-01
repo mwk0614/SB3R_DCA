@@ -90,7 +90,7 @@ class Train():
         self.total_iter_count = 0
         while self.epoch_count < self.args.max_epoch:
             self.epoch_count += 1
-            print("Start {}th Epoch".format(epoch_count))
+            print("Start {}th Epoch".format(self.epoch_count))
             model_pretrainer(self)
 
     def trans_pretraining(self):
